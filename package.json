@@ -1,0 +1,15 @@
+{
+  "name": "tws-battery-server",
+  "version": "1.0.0",
+  "description": "Cloud server for logging TWS battery events with timestamps",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "Rohith Ethapey",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}
