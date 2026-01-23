@@ -1,19 +1,3 @@
-// 🔥 DEBUG: force add + return count
-app.get("/__debug__", (req, res) => {
-    logs.push({
-        deviceName: "DEBUG_DEVICE",
-        deviceAddress: "AA:BB:CC",
-        battery: 99,
-        status: "DEBUG",
-        timestamp: new Date().toISOString()
-    });
-
-    res.json({
-        message: "DEBUG route executed",
-        logCount: logs.length,
-        logs
-    });
-});
 const express = require("express");
 const cors = require("cors");
 
@@ -24,50 +8,19 @@ app.use(cors());
 app.use(express.json());
 
 /* =========================
-   In-memory storage
+   IN-MEMORY STORAGE
 ========================= */
 let logs = [];
-let lastState = null;
 
 /* =========================
-   POST: battery log (used by Android app)
+   ROOT ROUTE (VERY IMPORTANT)
 ========================= */
-app.post("/battery-log", (req, res) => {
-    const { deviceName, deviceAddress, battery, status } = req.body;
-
-    if (!deviceName || !deviceAddress || battery === undefined || !status) {
-        return res.status(400).json({ error: "Invalid payload" });
-    }
-
-    const currentState = { deviceName, deviceAddress, battery, status };
-
-    // Log ONLY when something changes
-    if (
-        !lastState ||
-        lastState.deviceAddress !== deviceAddress ||
-        lastState.battery !== battery ||
-        lastState.status !== status
-    ) {
-        const entry = {
-            deviceName,
-            deviceAddress,
-            battery,
-            status,
-            timestamp: new Date().toISOString()
-        };
-
-        logs.push(entry);
-        lastState = currentState;
-
-        console.log("EVENT LOGGED:", entry);
-    }
-
-    res.json({ success: true });
+app.get("/", (req, res) => {
+    res.status(200).send("SERVER CODE VERSION: VISIBLE_CHANGE_123");
 });
 
 /* =========================
-   TEMP GET TEST ROUTE (browser-friendly)
-   🔴 REMOVE AFTER TESTING
+   TEST ROUTE (BROWSER-FRIENDLY)
 ========================= */
 app.get("/test-log", (req, res) => {
     const entry = {
@@ -79,36 +32,59 @@ app.get("/test-log", (req, res) => {
     };
 
     logs.push(entry);
-    lastState = entry;
 
     res.json({
-        success: true,
-        added: entry
+        message: "TEST LOG ADDED",
+        totalLogs: logs.length,
+        entry
     });
 });
 
 /* =========================
-   GET: JSON logs (Android app)
+   POST FROM ANDROID APP
+========================= */
+app.post("/battery-log", (req, res) => {
+    const { deviceName, deviceAddress, battery, status } = req.body;
+
+    if (!deviceName || !deviceAddress || battery === undefined || !status) {
+        return res.status(400).json({ error: "Invalid payload" });
+    }
+
+    const entry = {
+        deviceName,
+        deviceAddress,
+        battery,
+        status,
+        timestamp: new Date().toISOString()
+    };
+
+    logs.push(entry);
+    console.log("LOG RECEIVED:", entry);
+
+    res.json({ success: true });
+});
+
+/* =========================
+   GET LOGS (JSON)
 ========================= */
 app.get("/logs", (req, res) => {
     res.json(logs);
 });
 
 /* =========================
-   GET: Browser table view
+   GET LOGS (TABLE VIEW)
 ========================= */
 app.get("/logs-table", (req, res) => {
-
-    const rows = logs.map(log => {
-        const d = new Date(log.timestamp);
+    const rows = logs.map(l => {
+        const d = new Date(l.timestamp);
         return `
             <tr>
                 <td>${d.toLocaleDateString()}</td>
                 <td>${d.toLocaleTimeString()}</td>
-                <td>${log.deviceName}</td>
-                <td>${log.deviceAddress}</td>
-                <td>${log.battery}%</td>
-                <td>${log.status}</td>
+                <td>${l.deviceName}</td>
+                <td>${l.deviceAddress}</td>
+                <td>${l.battery}%</td>
+                <td>${l.status}</td>
             </tr>
         `;
     }).join("");
@@ -117,7 +93,7 @@ app.get("/logs-table", (req, res) => {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>TWS Battery Logs</title>
+            <title>TWS Logs</title>
             <style>
                 body { font-family: Arial; padding: 20px; }
                 table { border-collapse: collapse; width: 100%; }
@@ -144,14 +120,7 @@ app.get("/logs-table", (req, res) => {
 });
 
 /* =========================
-   Root check
-========================= */
-app.get("/", (req, res) => {
-    res.send("TWS Battery Cloud Server is running");
-});
-
-/* =========================
-   Start server (cloud-ready)
+   START SERVER
 ========================= */
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
