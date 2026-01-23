@@ -1,3 +1,19 @@
+// 🔥 DEBUG: force add + return count
+app.get("/__debug__", (req, res) => {
+    logs.push({
+        deviceName: "DEBUG_DEVICE",
+        deviceAddress: "AA:BB:CC",
+        battery: 99,
+        status: "DEBUG",
+        timestamp: new Date().toISOString()
+    });
+
+    res.json({
+        message: "DEBUG route executed",
+        logCount: logs.length,
+        logs
+    });
+});
 const express = require("express");
 const cors = require("cors");
 
