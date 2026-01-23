@@ -15,9 +15,6 @@ let logs = [];
 /* =========================
    ROOT ROUTE (VERY IMPORTANT)
 ========================= */
-app.get("/", (req, res) => {
-    res.status(200).send("SERVER CODE VERSION: VISIBLE_CHANGE_123");
-});
 
 /* =========================
    TEST ROUTE (BROWSER-FRIENDLY)
