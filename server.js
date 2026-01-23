@@ -11,53 +11,66 @@ app.use(express.json());
    IN-MEMORY STORAGE
 ========================= */
 let logs = [];
+let clients = [];
 
 /* =========================
-   ROOT ROUTE (VERY IMPORTANT)
+   HELPER: BROADCAST EVENTS (SSE)
 ========================= */
+function broadcastUpdate() {
+    clients.forEach(res => {
+        res.write(`data: update\n\n`);
+    });
+}
 
 /* =========================
-   TEST ROUTE (BROWSER-FRIENDLY)
+   ROOT (DEPLOYMENT CHECK)
 ========================= */
-app.get("/test-log", (req, res) => {
-    const entry = {
-        deviceName: "TEST_DEVICE",
-        deviceAddress: "00:11:22:33",
-        battery: 80,
-        status: "ON",
-        timestamp: new Date().toISOString()
-    };
+app.get("/", (req, res) => {
+    res.send("SERVER CODE VERSION: EVENT_DRIVEN_V1");
+});
 
-    logs.push(entry);
+/* =========================
+   SERVER-SENT EVENTS (LIVE UPDATES)
+========================= */
+app.get("/events", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-    res.json({
-        message: "TEST LOG ADDED",
-        totalLogs: logs.length,
-        entry
+    res.flushHeaders();
+    clients.push(res);
+
+    req.on("close", () => {
+        clients = clients.filter(c => c !== res);
     });
 });
 
 /* =========================
-   POST FROM ANDROID APP
+   POST: EVENT FROM ANDROID
 ========================= */
 app.post("/battery-log", (req, res) => {
     const { deviceName, deviceAddress, battery, status } = req.body;
 
-    if (!deviceName || !deviceAddress || battery === undefined || !status) {
+    if (!deviceName || !deviceAddress || status == null) {
         return res.status(400).json({ error: "Invalid payload" });
     }
+
+    const timestamp = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata"
+    });
 
     const entry = {
         deviceName,
         deviceAddress,
-        battery,
+        battery: battery >= 0 ? battery : null,
         status,
-        timestamp: new Date().toISOString()
+        timestamp
     };
 
     logs.push(entry);
-    console.log("LOG RECEIVED:", entry);
+    console.log("EVENT LOGGED:", entry);
 
+    broadcastUpdate(); // 🔥 instant update
     res.json({ success: true });
 });
 
@@ -72,45 +85,44 @@ app.get("/logs", (req, res) => {
    GET LOGS (TABLE VIEW)
 ========================= */
 app.get("/logs-table", (req, res) => {
-    const rows = logs.map(l => {
-        const d = new Date(l.timestamp);
-        return `
-            <tr>
-                <td>${d.toLocaleDateString()}</td>
-                <td>${d.toLocaleTimeString()}</td>
-                <td>${l.deviceName}</td>
-                <td>${l.deviceAddress}</td>
-                <td>${l.battery}%</td>
-                <td>${l.status}</td>
-            </tr>
-        `;
-    }).join("");
+    const rows = logs.map(l => `
+        <tr>
+            <td>${l.timestamp}</td>
+            <td>${l.deviceName}</td>
+            <td>${l.deviceAddress}</td>
+            <td>${l.battery !== null ? l.battery + "%" : "N/A"}</td>
+            <td>${l.status}</td>
+        </tr>
+    `).join("");
 
     res.send(`
-        <!DOCTYPE html>
         <html>
         <head>
             <title>TWS Logs</title>
             <style>
                 body { font-family: Arial; padding: 20px; }
-                table { border-collapse: collapse; width: 100%; }
-                th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-                th { background: #f2f2f2; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #444; padding: 8px; text-align: center; }
+                th { background: #eee; }
             </style>
         </head>
         <body>
-            <h2>TWS Battery Logs</h2>
+            <h2>TWS Event Logs (Live)</h2>
             <table>
                 <tr>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Device Name</th>
-                    <th>Device Address</th>
+                    <th>Timestamp</th>
+                    <th>Device</th>
+                    <th>Address</th>
                     <th>Battery</th>
                     <th>Status</th>
                 </tr>
                 ${rows}
             </table>
+
+            <script>
+                const evt = new EventSource("/events");
+                evt.onmessage = () => location.reload();
+            </script>
         </body>
         </html>
     `);
@@ -120,5 +132,5 @@ app.get("/logs-table", (req, res) => {
    START SERVER
 ========================= */
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log("Server running on port", PORT);
 });
