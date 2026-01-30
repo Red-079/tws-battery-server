@@ -1,3 +1,4 @@
+// ===== TWS BATTERY SERVER (FINAL STABLE) =====
 const express = require("express");
 const cors = require("cors");
 
@@ -7,80 +8,47 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// ======================
-// IN-MEMORY STORAGE
-// ======================
-const userLogs = {};
+let batteryLogs = [];
 
-// ======================
-// HEALTH CHECK
-// ======================
+// ROOT CHECK
 app.get("/", (req, res) => {
-  res.json({ status: "SERVER_ALIVE" });
+  res.send("Server is alive");
 });
 
-// ======================
-// RECEIVE LOG FROM APP
-// ======================
+// DEBUG ROUTE
+app.get("/debug", (req, res) => {
+  res.json({
+    message: "Debug OK",
+    logCount: batteryLogs.length,
+    logs: batteryLogs
+  });
+});
+
+// POST BATTERY DATA
 app.post("/battery-log", (req, res) => {
-  const {
-    userId,
-    deviceName,
-    deviceAddress,
-    battery,
-    status
-  } = req.body;
+  const data = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ error: "Missing userId" });
-  }
-
-  const entry = {
-    deviceName,
-    deviceAddress,
-    battery,
-    status,
-    timestamp: new Date().toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata"
-    })
+  const logEntry = {
+    deviceName: data.deviceName || "Unknown",
+    deviceAddress: data.deviceAddress || "Unknown",
+    left: data.left ?? null,
+    right: data.right ?? null,
+    case: data.case ?? null,
+    timestamp: Date.now(),
+    receivedAt: new Date().toISOString()
   };
 
-  if (!userLogs[userId]) {
-    userLogs[userId] = [];
-  }
+  batteryLogs.push(logEntry);
 
-  userLogs[userId].push(entry);
-
-  res.json({ success: true });
+  console.log("📥 Battery log received:", logEntry);
+  res.json({ status: "ok" });
 });
 
-// ======================
-// USER LOGS (PRIVATE)
-// ======================
-app.get("/logs/my", (req, res) => {
-  const userId = req.query.userId;
-
-  if (!userId) {
-    return res.status(400).json({ error: "Missing userId" });
-  }
-
-  res.json(userLogs[userId] || []);
+// GET BATTERY LOGS
+app.get("/battery-log", (req, res) => {
+  res.json(batteryLogs);
 });
 
-// ======================
-// ADMIN LOGS (ALL USERS)
-// ======================
-const ADMIN_KEY = "dev-secret-123";
-
-app.get("/admin/logs", (req, res) => {
-  if (req.query.key !== ADMIN_KEY) {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
-
-  res.json(userLogs);
-});
-
-// ======================
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
