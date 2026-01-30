@@ -1,71 +1,86 @@
 const express = require("express");
+const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
+app.use(cors());
 app.use(express.json());
 
-let logs = [];
+// ======================
+// IN-MEMORY STORAGE
+// ======================
+const userLogs = {};
 
-/* Root check */
+// ======================
+// HEALTH CHECK
+// ======================
 app.get("/", (req, res) => {
-    res.send("SERVER IS ALIVE");
+  res.json({ status: "SERVER_ALIVE" });
 });
 
-/* Receive data from app */
+// ======================
+// RECEIVE LOG FROM APP
+// ======================
 app.post("/battery-log", (req, res) => {
-    const entry = {
-        deviceName: req.body.deviceName,
-        deviceAddress: req.body.deviceAddress,
-        battery: req.body.battery,
-        status: req.body.status,
-        timestamp: new Date().toLocaleString("en-IN", {
-            timeZone: "Asia/Kolkata"
-        })
-    };
+  const {
+    userId,
+    deviceName,
+    deviceAddress,
+    battery,
+    status
+  } = req.body;
 
-    logs.push(entry);
-    console.log("LOG RECEIVED:", entry);
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
 
-    res.json({ success: true });
+  const entry = {
+    deviceName,
+    deviceAddress,
+    battery,
+    status,
+    timestamp: new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata"
+    })
+  };
+
+  if (!userLogs[userId]) {
+    userLogs[userId] = [];
+  }
+
+  userLogs[userId].push(entry);
+
+  res.json({ success: true });
 });
 
-/* Return logs */
-app.get("/logs", (req, res) => {
-    res.json(logs);
+// ======================
+// USER LOGS (PRIVATE)
+// ======================
+app.get("/logs/my", (req, res) => {
+  const userId = req.query.userId;
+
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+  res.json(userLogs[userId] || []);
 });
 
-/* Simple table view */
-app.get("/logs-table", (req, res) => {
-    const rows = logs.map(l => `
-        <tr>
-            <td>${l.timestamp}</td>
-            <td>${l.deviceName}</td>
-            <td>${l.deviceAddress}</td>
-            <td>${l.battery}</td>
-            <td>${l.status}</td>
-        </tr>
-    `).join("");
+// ======================
+// ADMIN LOGS (ALL USERS)
+// ======================
+const ADMIN_KEY = "dev-secret-123";
 
-    res.send(`
-        <html>
-        <body>
-            <h2>TWS Logs</h2>
-            <table border="1">
-                <tr>
-                    <th>Time</th>
-                    <th>Device</th>
-                    <th>Address</th>
-                    <th>Battery</th>
-                    <th>Status</th>
-                </tr>
-                ${rows}
-            </table>
-        </body>
-        </html>
-    `);
+app.get("/admin/logs", (req, res) => {
+  if (req.query.key !== ADMIN_KEY) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  res.json(userLogs);
 });
 
+// ======================
 app.listen(PORT, () => {
-    console.log("Server running on port", PORT);
+  console.log(`Server running on port ${PORT}`);
 });
